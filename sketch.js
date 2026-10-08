@@ -23,13 +23,14 @@ function setup() {
 }
 
 function loadVideo(url) {
-  const v = createVideo(url);
-  v.hide();
-  v.elt.muted = !started;
-  v.elt.playsInline = true;
-  v.elt.addEventListener('loadeddata', () => {
-    video = v;
-  });
+  video = createVideo(url);
+  video.elt.playsInline = true;
+  // keep it rendered but invisible: iOS may stop updating frames of a display:none video
+  video.style('position', 'fixed');
+  video.style('width', '1px');
+  video.style('height', '1px');
+  video.style('opacity', '0');
+  video.style('pointer-events', 'none');
 }
 
 // ---------- scrolling ----------
@@ -50,11 +51,8 @@ function makeScroller() {
 function start() {
   if (started) return;
   started = true;
-  if (video) {
-    video.elt.muted = false;
-    // phones only allow sound if play() is called directly inside the tap
-    video.elt.play().catch(() => {});
-  }
+  // phones only allow sound if play() is called directly inside the tap
+  video.elt.play();
   energy = ENERGY_PER_SWIPE;
 }
 
