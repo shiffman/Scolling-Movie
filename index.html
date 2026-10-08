@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>Keep Scrolling</title>
     <style>
-      html, body { margin: 0; padding: 0; overflow: hidden; background: #000; overscroll-behavior: none; }
-      canvas { display: block; }
-      /* invisible native scroll-snap feed on top of the canvas: one card per gesture */
+      html, body { margin: 0; padding: 0; overflow: hidden; background: #0c0c0c; overscroll-behavior: none; }
+      /* native scroll-snap feed: one card per gesture */
       .feed {
         position: absolute;
         overflow-y: scroll;
@@ -20,10 +19,10 @@
       .feed::-webkit-scrollbar { display: none; }
       .card { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; position: relative; background: #000; }
       /* a copy of the video, riding inside a card */
-      .slot { position: absolute; inset: 0; pointer-events: none; }
+      .slot { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; will-change: transform; }
       .slot video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
-      .track { position: absolute; left: 0; right: 0; bottom: 3px; height: 3px; background: rgba(255, 255, 255, 0.25); }
-      .bar { height: 100%; width: 0; background: #fff; }
+      .track { position: absolute; left: 0; right: 0; bottom: 3px; height: 3px; background: rgba(255, 255, 255, 0.25); z-index: 1; transform: translateZ(0); }
+      .bar { height: 100%; width: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
       .hint {
         position: fixed;
         inset: 0;
