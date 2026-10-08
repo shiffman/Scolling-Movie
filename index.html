@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Keep Scrolling</title>
+    <style>
+      html, body { margin: 0; padding: 0; overflow: hidden; background: #000; overscroll-behavior: none; }
+      canvas { display: block; }
+      /* invisible native scroll-snap feed on top of the canvas: one card per gesture */
+      .feed {
+        position: absolute;
+        overflow-y: scroll;
+        scroll-snap-type: y mandatory;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        scrollbar-width: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .feed::-webkit-scrollbar { display: none; }
+      .card { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+  </head>
+  <body>
+    <script src="sketch.js"></script>
+  </body>
+</html>
