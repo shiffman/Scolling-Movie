@@ -1,8 +1,9 @@
 const params = new URLSearchParams(location.search);
 const HOLD_SECONDS = Number(params.get('hold')) || 1;
 const HALF_LIFE = 0.5;
-const MAX_RATE = Number(params.get('max')) || 1;
-const MAX_ENERGY = MAX_RATE * 2 ** (HOLD_SECONDS / HALF_LIFE);
+const MAX_RATE = Number(params.get('max')) || 2;
+const SECONDS_PER_SWIPE_AT_1X = 1;
+const MAX_ENERGY = 2 ** (HOLD_SECONDS / HALF_LIFE);
 const ENERGY_PER_SWIPE = MAX_ENERGY;
 const STOP_RATE = 0.02;
 const NUM_CARDS = 2001;
@@ -28,6 +29,9 @@ const player = document.getElementById('player');
 const back = document.getElementById('back');
 const nudge = document.getElementById('nudge');
 let stoppedFor = 0;
+let lastSwipe = 0;
+const swipeGaps = [];
+let boost = 1;
 
 const cards = document.createDocumentFragment();
 for (let i = 0; i < NUM_CARDS; i++) {
@@ -488,7 +492,13 @@ function tick(now) {
   if (nearest !== index && Math.abs(pos - nearest) < 0.15) {
     index = nearest;
     place();
+    swipeGaps.push((now - lastSwipe) / 1000);
+    if (swipeGaps.length > 3) swipeGaps.shift();
+    lastSwipe = now;
   }
+  const gap = swipeGaps.reduce((a, b) => a + b, 0) / (swipeGaps.length || 1);
+  const swiping = (now - lastSwipe) / 1000 < HOLD_SECONDS;
+  boost = swiping && gap > 0 ? Math.min(MAX_RATE, Math.max(1, SECONDS_PER_SWIPE_AT_1X / gap)) : 1;
   if (Math.abs(pos - index) < 0.001 && (index < 100 || index > NUM_CARDS - 100)) {
     index = START_CARD;
     feed.scrollTop = index * cardH;
@@ -500,7 +510,7 @@ function tick(now) {
     feedDecoder();
     const loaded = !started || canAdvance();
     if (started && loaded) energy *= 0.5 ** (dt / HALF_LIFE);
-    const target = Math.min(energy, MAX_RATE);
+    const target = Math.min(energy, 1) * boost;
     rate += (target - rate) * (1 - 0.001 ** dt);
     if (rate < STOP_RATE && target < STOP_RATE) rate = 0;
     effectiveRate = started && loaded ? rate : 0;
@@ -544,7 +554,7 @@ function updateDebug() {
     `VideoDecoder ${'VideoDecoder' in window}  audioSession ${navigator.audioSession ? navigator.audioSession.type : 'none'}  ctx ${ctx ? ctx.state + ' ' + ctx.sampleRate + 'Hz' : '-'}`,
     `OUTPUT LEVEL ${'█'.repeat(Math.round(peak * 40)).padEnd(40, '·')} ${peak.toFixed(3)}`,
     voiceInfo,
-    `t ${t.toFixed(2)} / ${duration.toFixed(0)}  rate ${effectiveRate.toFixed(2)}  energy ${energy.toFixed(2)}`,
+    `t ${t.toFixed(2)} / ${duration.toFixed(0)}  rate ${effectiveRate.toFixed(2)}  boost ${boost.toFixed(2)}  energy ${energy.toFixed(2)}`,
     `frames ${frames.length}  decodeQ ${decoder ? decoder.decodeQueueSize : '-'}  nextVideo ${nextVideo}  segments ${[...segments.keys()].join(' ')}`,
     `audio chunks ${chunks}  voice ${voice ? audioChunkAt(voice.chunk.start) : '-'}`,
     `card ${index}  pos ${pos.toFixed(3)}  started ${started}  ready ${ready}`,
