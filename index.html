@@ -3,9 +3,71 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Keep Scrolling</title>
+    <title>Film Classics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;1,6..96,500&display=swap" rel="stylesheet" />
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0c0c; overscroll-behavior: none; }
+      :root {
+        --ink: #0d0c0a;
+        --paper: #ece6d8;
+        --muted: #9b9384;
+        --rule: rgba(236, 230, 216, 0.16);
+        --display: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
+        --body: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color-scheme: dark;
+      }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper); overscroll-behavior: none; }
+      [hidden] { display: none !important; }
+
+      #home {
+        position: fixed;
+        inset: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: calc(env(safe-area-inset-top, 0px) + 48px) 20px calc(env(safe-area-inset-bottom, 0px) + 40px);
+        box-sizing: border-box;
+      }
+      #home > * { max-width: 440px; margin-inline: auto; }
+      #home header { text-align: center; padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+      #home h1 {
+        margin: 0;
+        font: italic 500 clamp(44px, 13vw, 64px) / 1 var(--display);
+        letter-spacing: -0.01em;
+        text-wrap: balance;
+      }
+      #home .tagline {
+        margin: 14px 0 0;
+        font: 600 12px / 1 var(--body);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      #home ul { list-style: none; padding: 0; display: grid; gap: 28px; margin-top: 28px; margin-bottom: 0; }
+      #home button {
+        all: unset;
+        display: grid;
+        gap: 10px;
+        width: 100%;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #home img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        border-radius: 3px;
+        background: #000;
+        filter: grayscale(1) contrast(1.05);
+        transition: transform 0.2s ease;
+      }
+      #home button:hover img, #home button:focus-visible img { transform: scale(1.01); }
+      #home button:focus-visible { outline: 2px solid var(--paper); outline-offset: 6px; border-radius: 4px; }
+      #home button:active img { transform: scale(0.985); }
+      #home .title { font: 500 24px / 1.15 var(--display); }
+      #home .meta { font: 14px / 1.3 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
+
       #feed {
         position: absolute;
         overflow-y: scroll;
@@ -20,7 +82,6 @@
       #feed > canvas { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
       #progress { position: absolute; height: 3px; background: rgba(255, 255, 255, 0.25); pointer-events: none; }
       #progress div { height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
-      [hidden] { display: none !important; }
       #hint {
         position: fixed;
         inset: 0;
@@ -30,15 +91,86 @@
         padding: 0 32px;
         text-align: center;
         color: rgba(255, 255, 255, 0.8);
-        font: 16px "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font: 16px var(--body);
         pointer-events: none;
+      }
+      #nudge {
+        position: absolute;
+        display: grid;
+        justify-items: center;
+        gap: 6px;
+        color: #fff;
+        font: 600 13px / 1 var(--body);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.6s ease;
+      }
+      #nudge.show { opacity: 0.9; }
+      #nudge svg { width: 36px; height: 36px; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7)); }
+      #nudge.show svg { animation: nudge 1.4s ease-in-out infinite; }
+      @keyframes nudge {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-12px); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #nudge.show svg { animation: none; }
+      }
+      #back {
+        position: absolute;
+        z-index: 5;
+        padding: 10px 14px;
+        font: 600 14px / 1 var(--body);
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
       }
     </style>
   </head>
   <body>
-    <div id="feed"></div>
-    <div id="progress"><div></div></div>
-    <div id="hint">Loading…</div>
+    <main id="home">
+      <header>
+        <h1>Film Classics</h1>
+        <p class="tagline">now with scrolling</p>
+      </header>
+      <ul>
+        <li>
+          <button data-film="potemkin">
+            <img src="films/potemkin.jpg" alt="" />
+            <span class="title">Battleship Potemkin</span>
+            <span class="meta">1925 · Sergei Eisenstein · 73 min</span>
+          </button>
+        </li>
+        <li>
+          <button data-film="general">
+            <img src="films/general.jpg" alt="" />
+            <span class="title">The General</span>
+            <span class="meta">1926 · Buster Keaton · 67 min</span>
+          </button>
+        </li>
+        <li>
+          <button data-film="caligari">
+            <img src="films/caligari.jpg" alt="" />
+            <span class="title">The Cabinet of Dr. Caligari</span>
+            <span class="meta">1920 · Robert Wiene · 51 min</span>
+          </button>
+        </li>
+      </ul>
+    </main>
+
+    <div id="player" hidden>
+      <div id="feed"></div>
+      <div id="progress"><div></div></div>
+      <div id="nudge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 15 12 8 19 15" /></svg>
+        <span>Swipe up</span>
+      </div>
+      <a id="back" href="./">‹ Films</a>
+      <div id="hint">Loading…</div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
     <script src="sketch.js"></script>
   </body>

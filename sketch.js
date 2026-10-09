@@ -1,4 +1,3 @@
-const VIDEO_URL = 'movie.mp4';
 const params = new URLSearchParams(location.search);
 const HOLD_SECONDS = Number(params.get('hold')) || 1;
 const HALF_LIFE = 0.5;
@@ -15,11 +14,20 @@ const AUDIO_CHUNK_SECONDS = 6;
 const AUDIO_OVERLAP_FRAMES = 24;
 const AUDIO_PREROLL_FRAMES = 2;
 const CROSSFADE = 0.02;
+const NUDGE_AFTER_SECONDS = 6;
 const DEBUG = params.has('debug');
+
+let videoUrl = '';
+let wantStart = false;
 
 const feed = document.getElementById('feed');
 const progressBar = document.querySelector('#progress div');
 const hint = document.getElementById('hint');
+const home = document.getElementById('home');
+const player = document.getElementById('player');
+const back = document.getElementById('back');
+const nudge = document.getElementById('nudge');
+let stoppedFor = 0;
 
 const cards = document.createDocumentFragment();
 for (let i = 0; i < NUM_CARDS; i++) {
@@ -76,8 +84,8 @@ function fail(msg) {
 }
 
 async function fetchRange(start, end) {
-  const res = await fetch(VIDEO_URL, { headers: { Range: `bytes=${start}-${end - 1}` } });
-  if (res.status !== 206 && res.status !== 200) throw new Error(`HTTP ${res.status} loading ${VIDEO_URL}`);
+  const res = await fetch(videoUrl, { headers: { Range: `bytes=${start}-${end - 1}` } });
+  if (res.status !== 206 && res.status !== 200) throw new Error(`HTTP ${res.status} loading ${videoUrl}`);
   const buf = await res.arrayBuffer();
   return res.status === 200 ? buf.slice(start, end) : buf;
 }
@@ -287,6 +295,11 @@ function setupAudio() {
   audioTrack.adts = { profile: (objectType === 5 || objectType === 29 ? 2 : objectType) - 1, rateIndex, channels };
   const first = audioTrack.samples[0];
   audioTrack.chunkFrames = Math.max(1, Math.round(AUDIO_CHUNK_SECONDS / first.dur));
+  ensureAudioContext();
+}
+
+function ensureAudioContext() {
+  if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   master = ctx.createGain();
   master.connect(ctx.destination);
@@ -294,6 +307,16 @@ function setupAudio() {
     analyser = ctx.createAnalyser();
     master.connect(analyser);
   }
+}
+
+function unlockAudio() {
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  ensureAudioContext();
+  ctx.resume();
+  const unlock = ctx.createBufferSource();
+  unlock.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+  unlock.connect(ctx.destination);
+  unlock.start();
 }
 
 function adtsHeader(out, at, frameLength) {
@@ -408,6 +431,8 @@ function layout() {
   });
   const progress = progressBar.parentNode;
   Object.assign(progress.style, { left: x + 'px', top: y + fh - 6 + 'px', width: fw + 'px' });
+  Object.assign(nudge.style, { left: x + 'px', width: fw + 'px', top: y + fh - 130 + 'px' });
+  Object.assign(back.style, { left: x + 'px', top: `calc(${y}px + env(safe-area-inset-top, 0px))` });
 
   cardW = fw;
   cardH = fh;
@@ -431,35 +456,29 @@ function start() {
   if (started || failed) return;
   started = true;
   hint.hidden = true;
-  if (navigator.audioSession) navigator.audioSession.type = 'playback';
-  if (ctx) {
-    ctx.resume();
-    const unlock = ctx.createBufferSource();
-    unlock.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-    unlock.connect(ctx.destination);
-    unlock.start();
-  }
+  unlockAudio();
   energy = ENERGY_PER_SWIPE;
 }
 
-feed.addEventListener('click', start);
+feed.addEventListener('click', () => ready && start());
 feed.addEventListener('touchend', () => {
   if (started && ctx && ctx.state !== 'running') ctx.resume();
 });
 window.addEventListener('keydown', (e) => {
-  start();
+  if (ready) start();
   const dir = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
   if (!dir) return;
   e.preventDefault();
   feed.scrollBy({ top: dir * cardH, behavior: 'smooth' });
 });
-window.addEventListener('resize', layout);
+window.addEventListener('resize', () => !player.hidden && layout());
 
 let lastNow = performance.now();
 let effectiveRate = 0;
 function tick(now) {
   const dt = Math.min((now - lastNow) / 1000, 0.1);
   lastNow = now;
+  if (player.hidden) return requestAnimationFrame(tick);
 
   const next = feed.scrollTop / cardH;
   if (started) energy = Math.min(MAX_ENERGY, energy + Math.abs(next - pos) * ENERGY_PER_SWIPE);
@@ -490,6 +509,8 @@ function tick(now) {
     updateAudio(effectiveRate);
     evictSegments();
     progressBar.style.transform = `scaleX(${t / (duration || 1)})`;
+    stoppedFor = started && effectiveRate === 0 && energy < STOP_RATE ? stoppedFor + dt : 0;
+    nudge.classList.toggle('show', stoppedFor > NUDGE_AFTER_SECONDS);
   }
   if (DEBUG) updateDebug();
 
@@ -541,12 +562,32 @@ async function init() {
     await setupVideo();
     setupAudio();
     ready = true;
-    hint.textContent = 'Tap to start';
+    if (wantStart) start();
+    else hint.textContent = 'Tap to start';
   } catch (e) {
     fail(e.message || String(e));
   }
 }
 
-layout();
+function openFilm(id, autoStart) {
+  videoUrl = `films/${id}.mp4`;
+  wantStart = autoStart;
+  home.hidden = true;
+  player.hidden = false;
+  layout();
+  init();
+}
+
+for (const button of document.querySelectorAll('[data-film]')) {
+  button.addEventListener('click', () => {
+    const id = button.dataset.film;
+    unlockAudio();
+    history.pushState(null, '', `?film=${id}${DEBUG ? '&debug' : ''}`);
+    openFilm(id, true);
+  });
+}
+window.addEventListener('popstate', () => location.reload());
+
+const linked = params.get('film');
+if (linked && document.querySelector(`[data-film="${linked}"]`)) openFilm(linked, false);
 requestAnimationFrame(tick);
-init();
