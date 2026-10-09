@@ -17,8 +17,7 @@
       }
       #feed::-webkit-scrollbar { display: none; }
       .card { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
-      #feed > video, #feed > canvas { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
-      #feed > video { object-fit: contain; background: #000; }
+      #feed > canvas { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
       #progress { position: absolute; height: 3px; background: rgba(255, 255, 255, 0.25); pointer-events: none; }
       #progress div { height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
       [hidden] { display: none !important; }
@@ -28,6 +27,8 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 0 32px;
+        text-align: center;
         color: rgba(255, 255, 255, 0.8);
         font: 16px "Helvetica Neue", Helvetica, Arial, sans-serif;
         pointer-events: none;
@@ -37,8 +38,8 @@
   <body>
     <div id="feed"></div>
     <div id="progress"><div></div></div>
-    <div id="hint">Tap to start</div>
+    <div id="hint">Loading…</div>
+    <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
     <script src="sketch.js"></script>
-    <script src="debug.js"></script>
   </body>
 </html>
