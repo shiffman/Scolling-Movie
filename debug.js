@@ -41,11 +41,42 @@ if (new URLSearchParams(location.search).has('debug')) {
     });
   };
 
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('rate') || 'normal';
+  if (params.has('pitch')) {
+    video.preservesPitch = true;
+    video.webkitPreservesPitch = true;
+  }
+  const rateProp = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate');
+  let lastRateSet = 0;
+  Object.defineProperty(video, 'playbackRate', {
+    configurable: true,
+    get: () => rateProp.get.call(video),
+    set: (v) => {
+      if (mode === 'fixed') return;
+      if (mode === 'coarse') {
+        v = Math.min(2, Math.max(0.5, Math.round(v * 2) / 2));
+        if (v === rateProp.get.call(video) || performance.now() - lastRateSet < 500) return;
+        lastRateSet = performance.now();
+      }
+      rateProp.set.call(video, v);
+    },
+  });
+  let rateChanges = 0;
+  video.addEventListener('ratechange', () => rateChanges++);
+  const history = [];
+
   const states = ['NOTHING', 'METADATA', 'CURRENT', 'FUTURE', 'ENOUGH'];
   const nets = ['EMPTY', 'IDLE', 'LOADING', 'NO_SOURCE'];
   setInterval(() => {
     const buffered = video.buffered.length ? video.buffered.end(video.buffered.length - 1).toFixed(1) : '0';
+    const now = performance.now();
+    history.push([now, video.currentTime]);
+    while (history.length > 1 && now - history[0][0] > 1000) history.shift();
+    const [then, thenT] = history[0];
+    const actual = now > then ? (video.currentTime - thenT) / ((now - then) / 1000) : 0;
     panel.textContent = [
+      `MODE rate=${mode} pitch=${video.preservesPitch}  ACTUAL SPEED ${actual.toFixed(2)}x  ratechanges ${rateChanges}`,
       `ready ${states[video.readyState]}  net ${nets[video.networkState]}  ${video.paused ? 'PAUSED' : 'PLAYING'}`,
       `t ${video.currentTime.toFixed(2)} / ${(video.duration || 0).toFixed(0)}  buffered to ${buffered}  ${video.videoWidth}x${video.videoHeight}`,
       `playbackRate ${video.playbackRate.toFixed(2)}  muted ${video.muted}`,
