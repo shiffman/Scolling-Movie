@@ -2,28 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Keep Scrolling</title>
     <style>
-      html, body { margin: 0; padding: 0; overflow: hidden; background: #0c0c0c; overscroll-behavior: none; }
-      /* native scroll-snap feed: one card per gesture */
-      .feed {
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0c0c; overscroll-behavior: none; }
+      #feed {
         position: absolute;
         overflow-y: scroll;
         scroll-snap-type: y mandatory;
         overscroll-behavior: contain;
-        touch-action: pan-y;
         scrollbar-width: none;
+        background: #000;
         -webkit-tap-highlight-color: transparent;
       }
-      .feed::-webkit-scrollbar { display: none; }
-      .card { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; position: relative; background: #000; }
-      /* a copy of the video, riding inside a card */
-      .slot { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; will-change: transform; }
-      .slot video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
-      .track { position: absolute; left: 0; right: 0; bottom: 3px; height: 3px; background: rgba(255, 255, 255, 0.25); z-index: 1; transform: translateZ(0); }
-      .bar { height: 100%; width: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
-      .hint {
+      #feed::-webkit-scrollbar { display: none; }
+      .card { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+      #feed > video, #feed > canvas { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+      #feed > video { object-fit: contain; background: #000; }
+      #progress { position: absolute; height: 3px; background: rgba(255, 255, 255, 0.25); pointer-events: none; }
+      #progress div { height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
+      [hidden] { display: none !important; }
+      #hint {
         position: fixed;
         inset: 0;
         display: flex;
@@ -34,9 +33,11 @@
         pointer-events: none;
       }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
   </head>
   <body>
+    <div id="feed"></div>
+    <div id="progress"><div></div></div>
+    <div id="hint">Tap to start</div>
     <script src="sketch.js"></script>
   </body>
 </html>

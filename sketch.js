@@ -1,147 +1,171 @@
-const SECONDS_PER_SWIPE = 2;
-const MAX_BANKED = 3;
+const VIDEO_URL = 'movie.mp4';
+const ENERGY_PER_SWIPE = 2;
+const MAX_ENERGY = 2;
+const HALF_LIFE = 0.35;
+const MAX_RATE = 2;
+const MIN_RATE = 0.1;
+const RATE_STEP = 0.05;
+const RATE_UPDATE_MS = 80;
 const NUM_CARDS = 2001;
 const START_CARD = 1000;
 
+const feed = document.getElementById('feed');
+const progressBar = document.querySelector('#progress div');
+const hint = document.getElementById('hint');
+
+const cards = document.createDocumentFragment();
+for (let i = 0; i < NUM_CARDS; i++) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  cards.append(card);
+}
+feed.append(cards);
+
+const video = document.createElement('video');
+video.src = VIDEO_URL;
+video.preload = 'auto';
+video.playsInline = true;
+video.setAttribute('playsinline', '');
+video.preservesPitch = false;
+video.webkitPreservesPitch = false;
+feed.append(video);
+
+const mirrors = [document.createElement('canvas'), document.createElement('canvas')];
+feed.append(...mirrors);
+
 let started = false;
-let banked = 0;
+let energy = 0;
+let rate = 0;
+let lastRateMs = 0;
+let playPending = false;
 
-let scroller;
-let hint;
+let index = START_CARD;
 let pos = START_CARD;
+let cardW = 0;
 let cardH = 0;
+let mirroredTime = -1;
 
-let slots = []; // { wrap, video, bar, card }
-let current; // the slot on screen
-let index = START_CARD; // the card the current slot is in
-
-function setup() {
-  noCanvas();
-  makeScroller();
-  for (let i = 0; i < 3; i++) slots.push(makeSlot('movie.mp4?copy=' + i));
-  current = slots[1];
-  placeSlots();
-  hint = createDiv('Tap to start').class('hint');
-}
-
-function makeSlot(url) {
-  const wrap = createDiv().class('slot').parent(scroller);
-  const video = createElement('video');
-  video.attribute('src', url);
-  video.attribute('playsinline', '');
-  video.attribute('preload', 'auto');
-  video.parent(wrap);
-  const track = createDiv().class('track').parent(wrap);
-  const bar = createDiv().class('bar').parent(track);
-  return { wrap: wrap.elt, video: video.elt, bar: bar.elt };
-}
-
-function placeSlots() {
-  const others = slots.filter((s) => s !== current);
-  const where = [
-    [current, index],
-    [others[0], index - 1],
-    [others[1], index + 1],
-  ];
-  for (const [slot, i] of where) {
-    slot.card = i;
-    slot.wrap.style.height = cardH + 'px';
-    slot.wrap.style.transform = `translateY(${i * cardH}px)`;
+function layout() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  let x = 0, y = 0, fw = w, fh = h, radius = 0;
+  if (w >= 600) {
+    fh = h - 40;
+    fw = Math.min(fh * (9 / 19.5), w - 40);
+    x = (w - fw) / 2;
+    y = 20;
+    radius = 36;
   }
-}
-
-function makeScroller() {
-  scroller = createDiv().class('feed');
-  for (let i = 0; i < NUM_CARDS; i++) createDiv().class('card').parent(scroller);
-  scroller.elt.addEventListener('click', start);
-  scroller.elt.addEventListener('scrollend', () => {
-    const i = round(scroller.elt.scrollTop / cardH);
-    if (i < 100 || i > NUM_CARDS - 100) {
-      scroller.elt.scrollTop = START_CARD * cardH;
-      pos = START_CARD;
-      index = START_CARD;
-      placeSlots();
-    }
+  Object.assign(feed.style, {
+    left: x + 'px', top: y + 'px', width: fw + 'px', height: fh + 'px', borderRadius: radius + 'px',
   });
+  const progress = progressBar.parentNode;
+  Object.assign(progress.style, { left: x + 'px', top: y + fh - 6 + 'px', width: fw + 'px' });
+
+  cardW = fw;
+  cardH = fh;
+  video.style.height = cardH + 'px';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  for (const c of mirrors) {
+    c.width = Math.round(cardW * dpr);
+    c.height = Math.round(cardH * dpr);
+    c.style.height = cardH + 'px';
+  }
+  mirroredTime = -1;
+  feed.scrollTop = index * cardH;
+  pos = index;
+  place();
 }
 
-// new main slot!
-function setIndex(i) {
-  if (i === index) return;
-  const dir = i > index ? 1 : -1;
-  const ahead = slots.find((s) => s.card === index + dir);
-  index = i;
-  if (ahead) current = ahead;
-  for (const s of slots) s.video.muted = s !== current;
-  placeSlots();
+function place() {
+  video.style.transform = `translateY(${index * cardH}px)`;
+  mirrors[0].style.transform = `translateY(${(index - 1) * cardH}px)`;
+  mirrors[1].style.transform = `translateY(${(index + 1) * cardH}px)`;
+}
+
+function drawMirrors() {
+  if (video.readyState < 2) return;
+  for (const c of mirrors) {
+    const ctx = c.getContext('2d');
+    const s = Math.min(c.width / video.videoWidth, c.height / video.videoHeight);
+    const w = video.videoWidth * s;
+    const h = video.videoHeight * s;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(video, (c.width - w) / 2, (c.height - h) / 2, w, h);
+  }
+  mirroredTime = video.currentTime;
 }
 
 function start() {
   if (started) return;
   started = true;
-  hint.hide();
-  // iOS only allows sound from a video whose play() was called inside a tap,
-  // so start every copy here, then mute all but the one on screen
-  for (const s of slots) {
-    s.video.muted = false;
-    s.video.play().catch(() => {});
-  }
-  for (const s of slots) s.video.muted = s !== current;
-  banked = SECONDS_PER_SWIPE;
+  hint.hidden = true;
+  video.muted = false;
+  video.play().catch(() => {});
+  energy = ENERGY_PER_SWIPE;
 }
 
-function draw() {
-  const dt = min(deltaTime / 1000, 0.1);
-  placeScroller(layout());
+feed.addEventListener('click', start);
+window.addEventListener('keydown', (e) => {
+  start();
+  const dir = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+  if (!dir) return;
+  e.preventDefault();
+  feed.scrollBy({ top: dir * cardH, behavior: 'smooth' });
+});
+window.addEventListener('resize', layout);
 
-  const next = scroller.elt.scrollTop / cardH;
-  if (started) banked = min(MAX_BANKED, banked + abs(next - pos) * SECONDS_PER_SWIPE);
-  banked = max(0, banked - dt);
+function updatePlayback(now) {
+  const playing = rate >= MIN_RATE && !video.ended;
+  if (playing) {
+    if (now - lastRateMs > RATE_UPDATE_MS) {
+      const r = Math.round(Math.min(rate, MAX_RATE) / RATE_STEP) * RATE_STEP;
+      if (video.playbackRate !== r) video.playbackRate = r;
+      lastRateMs = now;
+    }
+    if (video.paused && !playPending) {
+      playPending = true;
+      video.play().catch(() => {}).finally(() => (playPending = false));
+    }
+  } else if (!video.paused) {
+    video.pause();
+  }
+}
+
+let lastNow = performance.now();
+function tick(now) {
+  const dt = Math.min((now - lastNow) / 1000, 0.1);
+  lastNow = now;
+
+  const next = feed.scrollTop / cardH;
+  if (started) energy = Math.min(MAX_ENERGY, energy + Math.abs(next - pos) * ENERGY_PER_SWIPE);
   pos = next;
-  if (abs(pos - round(pos)) < 0.15) setIndex(round(pos));
 
-  if (started) updatePlayback(banked > 0);
-
-  const progress = current.video.currentTime / (current.video.duration || 1);
-  for (const s of slots) s.bar.style.transform = `scaleX(${progress})`;
-}
-
-function updatePlayback(playing) {
-  const lead = current.video;
-  for (const s of slots) {
-    const v = s.video;
-    if (playing && !lead.ended) {
-      if (v.paused) v.play().catch(() => {});
-    } else if (!v.paused) {
-      v.pause();
-    }
-    // keep the off-screen copies on the same frame
-    if (v !== lead && !v.seeking) {
-      const drift = abs(v.currentTime - lead.currentTime);
-      if (drift > (playing ? 0.3 : 0.04)) v.currentTime = lead.currentTime;
-    }
+  const nearest = Math.round(pos);
+  if (nearest !== index && Math.abs(pos - nearest) < 0.15) {
+    index = nearest;
+    place();
   }
+
+  if (Math.abs(pos - index) < 0.001 && (index < 100 || index > NUM_CARDS - 100)) {
+    index = START_CARD;
+    feed.scrollTop = index * cardH;
+    pos = index;
+    place();
+  }
+
+  energy *= 0.5 ** (dt / HALF_LIFE);
+  const target = Math.min(energy, MAX_RATE);
+  rate += (target - rate) * (1 - 0.001 ** dt);
+  if (rate < MIN_RATE && target < MIN_RATE) rate = 0;
+
+  if (started) updatePlayback(now);
+  if (video.currentTime !== mirroredTime) drawMirrors();
+  progressBar.style.transform = `scaleX(${video.currentTime / (video.duration || 1)})`;
+
+  requestAnimationFrame(tick);
 }
 
-// keep the feed exactly over the phone screen
-function placeScroller(L) {
-  if (L.ph === cardH) return;
-  const card = cardH ? round(scroller.elt.scrollTop / cardH) : START_CARD;
-  scroller.position(L.px, L.py);
-  scroller.size(L.pw, L.ph);
-  scroller.style('border-radius', L.round + 'px');
-  cardH = L.ph;
-  scroller.elt.scrollTop = card * cardH;
-  pos = card;
-  placeSlots();
-}
-
-// vertical phone-shaped frame on desktop, full screen on mobile
-function layout() {
-  const w = windowWidth;
-  const h = windowHeight;
-  if (w < 600) return { px: 0, py: 0, pw: w, ph: h, round: 0 };
-  const ph = h - 40;
-  const pw = min(ph * (9 / 19.5), w - 40);
-  return { px: (w - pw) / 2, py: 20, pw, ph, round: 36 };
-}
+layout();
+requestAnimationFrame(tick);
