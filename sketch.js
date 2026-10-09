@@ -28,6 +28,10 @@ video.playsInline = true;
 video.setAttribute('playsinline', '');
 video.preservesPitch = false;
 video.webkitPreservesPitch = false;
+video.addEventListener('playing', () => {
+  hasPlayed = true;
+  hint.hidden = true;
+});
 feed.append(video);
 
 const mirrors = [document.createElement('canvas'), document.createElement('canvas')];
@@ -38,6 +42,7 @@ let energy = 0;
 let rate = 0;
 let lastRateMs = 0;
 let playPending = false;
+let hasPlayed = false;
 
 let index = START_CARD;
 let pos = START_CARD;
@@ -100,13 +105,16 @@ function drawMirrors() {
 function start() {
   if (started) return;
   started = true;
-  hint.hidden = true;
+  if (!hasPlayed) hint.textContent = 'Loading…';
   video.muted = false;
   video.play().catch(() => {});
   energy = ENERGY_PER_SWIPE;
 }
 
 feed.addEventListener('click', start);
+feed.addEventListener('touchend', () => {
+  if (started && video.paused && energy >= MIN_RATE) video.play().catch(() => {});
+});
 window.addEventListener('keydown', (e) => {
   start();
   const dir = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
@@ -155,7 +163,7 @@ function tick(now) {
     place();
   }
 
-  energy *= 0.5 ** (dt / HALF_LIFE);
+  if (hasPlayed) energy *= 0.5 ** (dt / HALF_LIFE);
   const target = Math.min(energy, MAX_RATE);
   rate += (target - rate) * (1 - 0.001 ** dt);
   if (rate < MIN_RATE && target < MIN_RATE) rate = 0;
