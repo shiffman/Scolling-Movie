@@ -1,8 +1,9 @@
 const VIDEO_URL = 'movie.mp4';
-const ENERGY_PER_SWIPE = 2;
-const MAX_ENERGY = 2;
+const HOLD_SECONDS = 1;
 const HALF_LIFE = 0.5;
-const MAX_RATE = 2;
+const MAX_RATE = 1;
+const MAX_ENERGY = MAX_RATE * 2 ** (HOLD_SECONDS / HALF_LIFE);
+const ENERGY_PER_SWIPE = MAX_ENERGY;
 const STOP_RATE = 0.02;
 const NUM_CARDS = 2001;
 const START_CARD = 1000;

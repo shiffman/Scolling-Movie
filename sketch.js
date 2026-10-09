@@ -2,10 +2,7 @@ const VIDEO_URL = 'movie.mp4';
 const ENERGY_PER_SWIPE = 2;
 const MAX_ENERGY = 2;
 const HALF_LIFE = 0.35;
-const MAX_RATE = 2;
-const MIN_RATE = 0.1;
-const RATE_STEP = 0.05;
-const RATE_UPDATE_MS = 80;
+const PLAY_THRESHOLD = 0.1;
 const NUM_CARDS = 2001;
 const START_CARD = 1000;
 
@@ -26,8 +23,6 @@ video.src = VIDEO_URL;
 video.preload = 'auto';
 video.playsInline = true;
 video.setAttribute('playsinline', '');
-video.preservesPitch = false;
-video.webkitPreservesPitch = false;
 video.addEventListener('playing', () => {
   hasPlayed = true;
   hint.hidden = true;
@@ -39,8 +34,6 @@ feed.append(...mirrors);
 
 let started = false;
 let energy = 0;
-let rate = 0;
-let lastRateMs = 0;
 let playPending = false;
 let hasPlayed = false;
 
@@ -113,7 +106,7 @@ function start() {
 
 feed.addEventListener('click', start);
 feed.addEventListener('touchend', () => {
-  if (started && video.paused && energy >= MIN_RATE) video.play().catch(() => {});
+  if (started && video.paused && energy >= PLAY_THRESHOLD) video.play().catch(() => {});
 });
 window.addEventListener('keydown', (e) => {
   start();
@@ -124,14 +117,9 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('resize', layout);
 
-function updatePlayback(now) {
-  const playing = rate >= MIN_RATE && !video.ended;
+function updatePlayback() {
+  const playing = energy >= PLAY_THRESHOLD && !video.ended;
   if (playing) {
-    if (now - lastRateMs > RATE_UPDATE_MS) {
-      const r = Math.round(Math.min(rate, MAX_RATE) / RATE_STEP) * RATE_STEP;
-      if (video.playbackRate !== r) video.playbackRate = r;
-      lastRateMs = now;
-    }
     if (video.paused && !playPending) {
       playPending = true;
       video.play().catch(() => {}).finally(() => (playPending = false));
@@ -164,11 +152,8 @@ function tick(now) {
   }
 
   if (hasPlayed) energy *= 0.5 ** (dt / HALF_LIFE);
-  const target = Math.min(energy, MAX_RATE);
-  rate += (target - rate) * (1 - 0.001 ** dt);
-  if (rate < MIN_RATE && target < MIN_RATE) rate = 0;
 
-  if (started) updatePlayback(now);
+  if (started) updatePlayback();
   if (video.currentTime !== mirroredTime) drawMirrors();
   progressBar.style.transform = `scaleX(${video.currentTime / (video.duration || 1)})`;
 
